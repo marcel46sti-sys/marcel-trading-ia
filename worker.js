@@ -1,139 +1,302 @@
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
+
+    // =========================
+    // API DE CHAT
+    // =========================
+
+    if (request.method === "POST") {
+
+      try {
+
+        const data = await request.json();
+
+        const question = data.question;
+
+        if (!question) {
+          return Response.json(
+            { error: "No se recibió ninguna pregunta." },
+            { status: 400 }
+          );
+        }
+
+        const messages = [
+
+          {
+            role: "system",
+            content: `
+Eres Marcel Trading IA, un asistente especializado en trading.
+
+Tu objetivo es ayudar al usuario a analizar mercados y mejorar su proceso de toma de decisiones.
+
+CONOCIMIENTOS PRINCIPALES:
+
+- Price Action
+- Market Structure
+- Liquidity
+- CRT (Candle Range Theory)
+- PO3
+- FVG (Fair Value Gap)
+- Order Flow
+- Footprint
+- DOM
+- Volumen
+- Soportes y resistencias
+- Gestión monetaria
+- Psicología del trading
+
+REGLAS IMPORTANTES:
+
+1. Responde siempre en español.
+
+2. No inventes precios, datos de mercado, noticias ni información que no tengas.
+
+3. Si el usuario no proporciona suficiente información, pídele los datos necesarios.
+
+4. No presentes una operación como segura.
+
+5. Diferencia siempre entre:
+   - hecho
+   - interpretación
+   - hipótesis
+   - confirmación necesaria
+
+6. Prioriza la gestión del riesgo sobre la búsqueda de beneficios.
+
+7. Nunca recomiendes aumentar el riesgo para recuperar pérdidas.
+
+8. Si analizas una operación, intenta estructurar la respuesta así:
+
+   CONTEXTO
+   ESTRUCTURA
+   LIQUIDEZ
+   ZONA DE INTERÉS
+   CONFIRMACIÓN
+   INVALIDACIÓN
+   RIESGO
+   RATIO R:R
+   CONCLUSIÓN
+
+9. Si el usuario habla de CRT, PO3, FVG u Order Flow, utiliza esos conceptos correctamente y explica el razonamiento.
+
+10. Si falta información, dilo claramente.
+
+11. No prometas resultados ni beneficios.
+
+12. Sé directo y práctico. Evita respuestas genéricas.
+
+13. Si detectas que el usuario está actuando por miedo, revancha, FOMO o intentando recuperar una pérdida, señálalo.
+
+Tu función es ayudar al usuario a pensar como un trader disciplinado, no simplemente decirle "compra" o "vende".
+`
+          },
+
+          {
+            role: "user",
+            content: question
+          }
+
+        ];
+
+        const response = await env.AI.run(
+          "@cf/meta/llama-3.2-1b-instruct",
+          {
+            messages,
+            max_tokens: 700,
+            temperature: 0.25
+          }
+        );
+
+        return Response.json({
+          answer: response.response || "No he podido generar una respuesta."
+        });
+
+      } catch (error) {
+
+        return Response.json(
+          {
+            error: "Error al consultar la IA.",
+            details: String(error)
+          },
+          { status: 500 }
+        );
+
+      }
+
+    }
+
+    // =========================
+    // INTERFAZ WEB
+    // =========================
+
     const html = `<!DOCTYPE html>
+
 <html lang="es">
+
 <head>
+
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<meta name="viewport"
+content="width=device-width,initial-scale=1">
+
 <title>Marcel Trading IA</title>
 
 <style>
-*{box-sizing:border-box}
+
+*{
+box-sizing:border-box
+}
+
 body{
-  margin:0;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
-  background:#0b1020;
-  color:#fff;
+margin:0;
+font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+background:#0b1020;
+color:#fff;
 }
+
 .container{
-  max-width:1100px;
-  margin:auto;
-  padding:25px 18px 50px;
+max-width:1100px;
+margin:auto;
+padding:25px 18px 50px;
 }
+
 header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:25px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:25px;
 }
+
 .logo{
-  font-size:25px;
-  font-weight:800;
+font-size:25px;
+font-weight:800;
 }
-.logo span{color:#5b8cff}
+
+.logo span{
+color:#5b8cff;
+}
+
 .badge{
-  background:#17213d;
-  border:1px solid #2d3b62;
-  padding:7px 12px;
-  border-radius:20px;
-  font-size:13px;
+background:#17213d;
+border:1px solid #2d3b62;
+padding:7px 12px;
+border-radius:20px;
+font-size:13px;
 }
+
 h1{
-  font-size:32px;
-  margin:10px 0 8px;
+font-size:32px;
+margin:10px 0 8px;
 }
+
 .subtitle{
-  color:#9ca8c4;
-  margin-bottom:25px;
+color:#9ca8c4;
+margin-bottom:25px;
 }
+
 .grid{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:15px;
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:15px;
 }
+
 .card{
-  background:#121a2d;
-  border:1px solid #25314e;
-  border-radius:16px;
-  padding:20px;
+background:#121a2d;
+border:1px solid #25314e;
+border-radius:16px;
+padding:20px;
 }
+
 .card h2{
-  margin-top:0;
-  font-size:19px;
+margin-top:0;
+font-size:19px;
 }
+
 .card p{
-  color:#9ca8c4;
-  line-height:1.5;
+color:#9ca8c4;
+line-height:1.5;
 }
+
 input,select,textarea{
-  width:100%;
-  padding:12px;
-  margin:6px 0 10px;
-  background:#0b1020;
-  color:#fff;
-  border:1px solid #34415f;
-  border-radius:9px;
-  font-size:15px;
+width:100%;
+padding:12px;
+margin:6px 0 10px;
+background:#0b1020;
+color:#fff;
+border:1px solid #34415f;
+border-radius:9px;
+font-size:15px;
 }
+
 button{
-  border:0;
-  border-radius:9px;
-  padding:12px 16px;
-  background:#4f7cff;
-  color:#fff;
-  font-weight:700;
-  cursor:pointer;
+border:0;
+border-radius:9px;
+padding:12px 16px;
+background:#4f7cff;
+color:#fff;
+font-weight:700;
+cursor:pointer;
 }
-button:hover{opacity:.9}
+
 .result{
-  margin-top:12px;
-  padding:12px;
-  border-radius:9px;
-  background:#0b1020;
-  border:1px solid #263452;
-  line-height:1.6;
+margin-top:12px;
+padding:12px;
+border-radius:9px;
+background:#0b1020;
+border:1px solid #263452;
+line-height:1.6;
 }
+
 .chat{
-  margin-top:18px;
+margin-top:18px;
 }
+
 .messages{
-  height:220px;
-  overflow:auto;
-  padding:12px;
-  background:#0b1020;
-  border-radius:10px;
-  border:1px solid #293655;
-  margin-bottom:10px;
+height:300px;
+overflow:auto;
+padding:12px;
+background:#0b1020;
+border-radius:10px;
+border:1px solid #293655;
+margin-bottom:10px;
 }
+
 .msg{
-  padding:10px 12px;
-  margin:7px 0;
-  border-radius:10px;
-  max-width:90%;
+padding:10px 12px;
+margin:7px 0;
+border-radius:10px;
+max-width:90%;
+white-space:pre-wrap;
 }
+
 .user{
-  background:#23418a;
-  margin-left:auto;
+background:#23418a;
+margin-left:auto;
 }
+
 .ai{
-  background:#1b263e;
+background:#1b263e;
 }
+
 .full{
-  grid-column:1/-1;
+grid-column:1/-1;
 }
-.stat{
-  font-size:27px;
-  font-weight:800;
-}
-.small{
-  font-size:13px;
-  color:#8f9bb5;
-}
+
 @media(max-width:800px){
-  .grid{grid-template-columns:1fr}
-  .full{grid-column:auto}
+
+.grid{
+grid-template-columns:1fr;
 }
+
+.full{
+grid-column:auto;
+}
+
+}
+
 </style>
+
 </head>
 
 <body>
@@ -141,79 +304,147 @@ button:hover{opacity:.9}
 <div class="container">
 
 <header>
-  <div class="logo">Marcel <span>Trading IA</span></div>
-  <div class="badge">● Sistema activo</div>
+
+<div class="logo">
+Marcel <span>Trading IA</span>
+</div>
+
+<div class="badge">
+● IA conectada
+</div>
+
 </header>
 
-<h1>Panel de Trading Inteligente</h1>
+<h1>
+Panel de Trading Inteligente
+</h1>
+
 <div class="subtitle">
-  Analiza setups, calcula riesgo y registra tus operaciones.
+Analiza setups, calcula riesgo y consulta a Marcel Trading IA.
 </div>
 
 <div class="grid">
 
 <div class="card">
+
 <h2>📊 Analizador de Setup</h2>
-<p>Introduce los datos de una operación para obtener una valoración inicial.</p>
+
+<p>
+Introduce los datos de una operación.
+</p>
 
 <select id="asset">
+
 <option>NAS100 / NQ</option>
 <option>XAUUSD</option>
 <option>EURUSD</option>
 <option>GBPUSD</option>
 <option>SP500</option>
+
 </select>
 
 <select id="direction">
+
 <option>LONG</option>
 <option>SHORT</option>
+
 </select>
 
-<input id="entry" type="number" step="any" placeholder="Entrada">
-<input id="sl" type="number" step="any" placeholder="Stop Loss">
-<input id="tp" type="number" step="any" placeholder="Take Profit">
+<input
+id="entry"
+type="number"
+step="any"
+placeholder="Entrada"
+>
 
-<button onclick="analyze()">Analizar setup</button>
+<input
+id="sl"
+type="number"
+step="any"
+placeholder="Stop Loss"
+>
+
+<input
+id="tp"
+type="number"
+step="any"
+placeholder="Take Profit"
+>
+
+<button onclick="analyze()">
+Analizar setup
+</button>
 
 <div id="analysis" class="result">
 Esperando datos...
 </div>
+
 </div>
 
 
 <div class="card">
+
 <h2>🛡️ Gestión de Riesgo</h2>
-<p>Calcula cuánto dinero estás arriesgando antes de entrar.</p>
 
-<input id="account" type="number" placeholder="Capital de cuenta (€)">
-<input id="risk" type="number" step="0.1" value="1" placeholder="Riesgo %">
+<p>
+Calcula el riesgo máximo de la operación.
+</p>
 
-<button onclick="riskCalc()">Calcular riesgo</button>
+<input
+id="account"
+type="number"
+placeholder="Capital (€)"
+>
+
+<input
+id="risk"
+type="number"
+step="0.1"
+value="1"
+placeholder="Riesgo %"
+>
+
+<button onclick="riskCalc()">
+Calcular riesgo
+</button>
 
 <div id="riskResult" class="result">
 Introduce capital y riesgo.
 </div>
+
 </div>
 
 
 <div class="card">
-<h2>📓 Diario de Trading</h2>
-<p>Registra rápidamente el motivo de tu operación.</p>
+
+<h2>📓 Diario</h2>
+
+<p>
+Registra el resultado y aprendizaje de la operación.
+</p>
 
 <select id="tradeResult">
+
 <option>Ganadora</option>
 <option>Perdedora</option>
 <option>Break Even</option>
+
 </select>
 
-<textarea id="notes" rows="5"
-placeholder="¿Por qué entraste? ¿Qué viste? ¿Respetaste el plan?"></textarea>
+<textarea
+id="notes"
+rows="5"
+placeholder="¿Por qué entraste? ¿Qué viste?"
+></textarea>
 
-<button onclick="saveTrade()">Guardar operación</button>
+<button onclick="saveTrade()">
+Guardar operación
+</button>
 
 <div id="saved" class="result">
 No hay operación guardada.
 </div>
+
 </div>
 
 
@@ -222,16 +453,27 @@ No hay operación guardada.
 <h2>🤖 Marcel Trading IA</h2>
 
 <div class="messages" id="messages">
+
 <div class="msg ai">
-Hola Marcel. Soy tu asistente de trading.<br><br>
-Puedes preguntarme sobre una operación, riesgo, estructura, FVG, CRT, PO3 u Order Flow.
-</div>
+
+Hola Marcel 👋
+
+Soy tu asistente de trading.
+
+Pregúntame sobre CRT, PO3, FVG, Order Flow, estructura, liquidez, riesgo o cualquier operación que quieras analizar.
+
 </div>
 
-<input id="question"
-placeholder="Escribe tu pregunta...">
+</div>
 
-<button onclick="askAI()">Enviar</button>
+<input
+id="question"
+placeholder="Escribe tu pregunta..."
+>
+
+<button onclick="askAI()">
+Enviar
+</button>
 
 </div>
 
@@ -244,165 +486,242 @@ placeholder="Escribe tu pregunta...">
 
 function analyze(){
 
-  const entry=parseFloat(document.getElementById("entry").value);
-  const sl=parseFloat(document.getElementById("sl").value);
-  const tp=parseFloat(document.getElementById("tp").value);
-  const direction=document.getElementById("direction").value;
+const entry=parseFloat(
+document.getElementById("entry").value
+);
 
-  if(!entry || !sl || !tp){
-    document.getElementById("analysis").innerHTML=
-      "⚠️ Completa entrada, SL y TP.";
-    return;
-  }
+const sl=parseFloat(
+document.getElementById("sl").value
+);
 
-  let risk, reward;
+const tp=parseFloat(
+document.getElementById("tp").value
+);
 
-  if(direction==="LONG"){
-    risk=Math.abs(entry-sl);
-    reward=Math.abs(tp-entry);
-  }else{
-    risk=Math.abs(sl-entry);
-    reward=Math.abs(entry-tp);
-  }
+const direction=
+document.getElementById("direction").value;
 
-  const rr=reward/risk;
+if(!entry || !sl || !tp){
 
-  let verdict;
+document.getElementById("analysis").innerHTML=
+"⚠️ Completa entrada, SL y TP.";
 
-  if(rr>=3)
-    verdict="🟢 Setup atractivo";
-  else if(rr>=2)
-    verdict="🟡 Setup aceptable";
-  else
-    verdict="🔴 R:R bajo";
+return;
 
-  document.getElementById("analysis").innerHTML=
-    "<b>"+verdict+"</b><br>"+
-    "Distancia SL: "+risk.toFixed(2)+"<br>"+
-    "Distancia TP: "+reward.toFixed(2)+"<br>"+
-    "Ratio R:R: 1:"+rr.toFixed(2);
+}
+
+let risk;
+let reward;
+
+if(direction==="LONG"){
+
+risk=Math.abs(entry-sl);
+reward=Math.abs(tp-entry);
+
+}else{
+
+risk=Math.abs(sl-entry);
+reward=Math.abs(entry-tp);
+
+}
+
+const rr=reward/risk;
+
+let verdict;
+
+if(rr>=3)
+verdict="🟢 R:R atractivo";
+
+else if(rr>=2)
+verdict="🟡 R:R aceptable";
+
+else
+verdict="🔴 R:R bajo";
+
+document.getElementById("analysis").innerHTML=
+
+"<b>"+verdict+"</b><br>"+
+"Distancia SL: "+risk.toFixed(2)+"<br>"+
+"Distancia TP: "+reward.toFixed(2)+"<br>"+
+"Ratio R:R: 1:"+rr.toFixed(2);
+
 }
 
 
 function riskCalc(){
 
-  const account=parseFloat(document.getElementById("account").value);
-  const risk=parseFloat(document.getElementById("risk").value);
+const account=parseFloat(
+document.getElementById("account").value
+);
 
-  if(!account || !risk){
-    document.getElementById("riskResult").innerHTML=
-      "⚠️ Introduce capital y porcentaje de riesgo.";
-    return;
-  }
+const risk=parseFloat(
+document.getElementById("risk").value
+);
 
-  const amount=account*(risk/100);
+if(!account || !risk){
 
-  document.getElementById("riskResult").innerHTML=
-    "<b>Riesgo máximo:</b> €"+amount.toFixed(2)+"<br>"+
-    "<span class='small'>Esto representa el "+risk+"% de la cuenta.</span>";
+document.getElementById("riskResult").innerHTML=
+"⚠️ Introduce capital y porcentaje de riesgo.";
+
+return;
+
+}
+
+const amount=
+account*(risk/100);
+
+document.getElementById("riskResult").innerHTML=
+
+"<b>Riesgo máximo:</b> €"+
+amount.toFixed(2);
+
 }
 
 
 function saveTrade(){
 
-  const result=document.getElementById("tradeResult").value;
-  const notes=document.getElementById("notes").value;
+const result=
+document.getElementById("tradeResult").value;
 
-  if(!notes){
-    document.getElementById("saved").innerHTML=
-      "⚠️ Escribe una nota antes de guardar.";
-    return;
-  }
+const notes=
+document.getElementById("notes").value;
 
-  localStorage.setItem(
-    "lastTrade",
-    JSON.stringify({
-      result:result,
-      notes:notes,
-      date:new Date().toLocaleString()
-    })
-  );
+if(!notes){
 
-  document.getElementById("saved").innerHTML=
-    "✅ Operación guardada<br>"+
-    "<b>"+result+"</b><br>"+
-    notes;
+document.getElementById("saved").innerHTML=
+"⚠️ Escribe una nota.";
+
+return;
+
+}
+
+localStorage.setItem(
+"lastTrade",
+JSON.stringify({
+result,
+notes,
+date:new Date().toLocaleString()
+})
+);
+
+document.getElementById("saved").innerHTML=
+
+"✅ Operación guardada<br>"+
+"<b>"+result+"</b><br>"+
+notes;
+
 }
 
 
-function askAI(){
+async function askAI(){
 
-  const input=document.getElementById("question");
-  const question=input.value.trim();
+const input=
+document.getElementById("question");
 
-  if(!question)return;
+const question=
+input.value.trim();
 
-  const messages=document.getElementById("messages");
+if(!question)return;
 
-  messages.innerHTML+=
-    '<div class="msg user">'+
-    escapeHtml(question)+
-    '</div>';
+const messages=
+document.getElementById("messages");
 
-  let answer=
-    "Para analizarlo correctamente necesito contexto: activo, timeframe, entrada, SL, TP y qué estructura estás viendo. No tomes una operación únicamente por esta respuesta.";
+messages.innerHTML+=
 
-  const q=question.toLowerCase();
+'<div class="msg user">'+
+escapeHtml(question)+
+'</div>';
 
-  if(q.includes("riesgo")){
-    answer=
-      "La prioridad es definir primero cuánto estás dispuesto a perder. "+
-      "Después calcula el tamaño de posición según la distancia del SL. "+
-      "No aumentes el riesgo para recuperar una pérdida.";
-  }
+input.value="";
 
-  if(q.includes("fvg")){
-    answer=
-      "Un FVG puede actuar como zona de interés, pero no debería utilizarse "+
-      "como entrada automática sin contexto. Comprueba estructura, liquidez, "+
-      "desplazamiento y reacción del precio.";
-  }
+const loading=
+document.createElement("div");
 
-  if(q.includes("crt")){
-    answer=
-      "En CRT interesa especialmente observar el rango de la vela de referencia, "+
-      "la toma de liquidez y la posterior expansión. El contexto y el timeframe "+
-      "son fundamentales.";
-  }
+loading.className="msg ai";
 
-  if(q.includes("po3")){
-    answer=
-      "Para un PO3 puedes estudiar acumulación, manipulación y distribución, "+
-      "pero evita asumir que toda ruptura es una manipulación. Busca confirmación "+
-      "con estructura y desplazamiento.";
-  }
+loading.textContent=
+"🧠 Analizando...";
 
-  messages.innerHTML+=
-    '<div class="msg ai">'+escapeHtml(answer)+'</div>';
+messages.appendChild(loading);
 
-  messages.scrollTop=messages.scrollHeight;
-  input.value="";
+messages.scrollTop=
+messages.scrollHeight;
+
+try{
+
+const response=
+await fetch("/",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body:JSON.stringify({
+question
+})
+
+});
+
+const data=
+await response.json();
+
+loading.remove();
+
+if(data.error){
+
+throw new Error(data.error);
+
+}
+
+messages.innerHTML+=
+
+'<div class="msg ai">'+
+escapeHtml(data.answer)+
+'</div>';
+
+}catch(error){
+
+loading.remove();
+
+messages.innerHTML+=
+
+'<div class="msg ai">'+
+"⚠️ Error al conectar con la IA: "+
+escapeHtml(error.message)+
+'</div>';
+
+}
+
+messages.scrollTop=
+messages.scrollHeight;
+
 }
 
 
 function escapeHtml(text){
-  return text
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+
+return String(text)
+.replaceAll("&","&amp;")
+.replaceAll("<","&lt;")
+.replaceAll(">","&gt;")
+.replaceAll('"',"&quot;")
+.replaceAll("'","&#039;");
+
 }
 
 </script>
 
 </body>
+
 </html>`;
 
-    return new Response(html,{
-      headers:{
-        "content-type":"text/html;charset=UTF-8"
+    return new Response(html, {
+      headers: {
+        "content-type": "text/html;charset=UTF-8"
       }
     });
+
   }
 };
