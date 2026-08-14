@@ -1,9 +1,333 @@
+const SESSION_COOKIE = "mtia_session";
+const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 días
+
+async function createSessionSignature(timestamp, password) {
+  const encoder = new TextEncoder();
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(timestamp)
+  );
+
+  return Array.from(new Uint8Array(signature))
+    .map(byte => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function isAuthenticated(request, env) {
+  const cookieHeader = request.headers.get("Cookie") || "";
+
+  const cookies = Object.fromEntries(
+    cookieHeader
+      .split(";")
+      .map(cookie => cookie.trim().split("="))
+      .filter(parts => parts.length === 2)
+  );
+
+  const session = cookies[SESSION_COOKIE];
+
+  if (!session) {
+    return false;
+  }
+
+  const [timestamp, signature] = session.split(".");
+
+  if (!timestamp || !signature) {
+    return false;
+  }
+
+  const timestampNumber = Number(timestamp);
+
+  if (!Number.isFinite(timestampNumber)) {
+    return false;
+  }
+
+  const now = Date.now();
+
+  if (now - timestampNumber > SESSION_MAX_AGE * 1000) {
+    return false;
+  }
+
+  if (timestampNumber > now + 60000) {
+    return false;
+  }
+
+  const expectedSignature = await createSessionSignature(
+    timestamp,
+    env.APP_PASSWORD
+  );
+
+  return signature === expectedSignature;
+}
+
+function loginPage(error = "") {
+  return `<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width,initial-scale=1">
+
+<meta name="theme-color" content="#0b1020">
+
+<title>Marcel Trading IA - Acceso</title>
+
+<style>
+
+*{
+box-sizing:border-box;
+}
+
+body{
+margin:0;
+min-height:100vh;
+display:flex;
+align-items:center;
+justify-content:center;
+font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+background:#0b1020;
+color:#fff;
+padding:20px;
+}
+
+.login{
+width:100%;
+max-width:420px;
+background:#121a2d;
+border:1px solid #25314e;
+border-radius:20px;
+padding:30px;
+box-shadow:0 20px 60px rgba(0,0,0,.35);
+}
+
+.logo{
+font-size:28px;
+font-weight:800;
+margin-bottom:8px;
+}
+
+.logo span{
+color:#5b8cff;
+}
+
+.subtitle{
+color:#9ca8c4;
+margin-bottom:25px;
+line-height:1.5;
+}
+
+input{
+width:100%;
+padding:14px;
+background:#0b1020;
+color:#fff;
+border:1px solid #34415f;
+border-radius:10px;
+font-size:16px;
+margin-bottom:12px;
+}
+
+button{
+width:100%;
+border:0;
+border-radius:10px;
+padding:14px;
+background:#4f7cff;
+color:#fff;
+font-weight:700;
+font-size:16px;
+cursor:pointer;
+}
+
+.error{
+margin-top:15px;
+padding:12px;
+border-radius:10px;
+background:#3a1720;
+border:1px solid #713040;
+color:#ffb7c2;
+}
+
+.lock{
+font-size:42px;
+margin-bottom:12px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="login">
+
+<div class="lock">🔐</div>
+
+<div class="logo">
+Marcel <span>Trading IA</span>
+</div>
+
+<div class="subtitle">
+Acceso privado. Introduce tu contraseña para continuar.
+</div>
+
+<form method="POST" action="/login">
+
+<input
+type="password"
+name="password"
+placeholder="Contraseña"
+autocomplete="current-password"
+autofocus
+required
+>
+
+<button type="submit">
+Entrar
+</button>
+
+</form>
+
+${error ? `<div class="error">${error}</div>` : ""}
+
+</div>
+
+</body>
+
+</html>`;
+}
+
 export default {
   async fetch(request, env) {
 
-    // =========================
+    const url = new URL(request.url);
+
+    // ==========================================
+    // INICIO DE SESIÓN
+    // ==========================================
+
+    if (url.pathname === "/login" && request.method === "POST") {
+
+      try {
+
+        const formData = await request.formData();
+
+        const password = formData.get("password");
+
+        if (
+          typeof password !== "string" ||
+          !password ||
+          password !== env.APP_PASSWORD
+        ) {
+
+          return new Response(
+            loginPage("❌ Contraseña incorrecta."),
+            {
+              status: 401,
+              headers: {
+                "content-type": "text/html;charset=UTF-8",
+                "cache-control": "no-store"
+              }
+            }
+          );
+
+        }
+
+        const timestamp = String(Date.now());
+
+        const signature = await createSessionSignature(
+          timestamp,
+          env.APP_PASSWORD
+        );
+
+        const cookieValue = `${timestamp}.${signature}`;
+
+        return new Response(null, {
+          status: 303,
+
+          headers: {
+
+            "Location": "/",
+
+            "Set-Cookie":
+              `${SESSION_COOKIE}=${cookieValue}; ` +
+              `Max-Age=${SESSION_MAX_AGE}; ` +
+              `Path=/; ` +
+              `HttpOnly; ` +
+              `Secure; ` +
+              `SameSite=Strict`,
+
+            "Cache-Control": "no-store"
+
+          }
+
+        });
+
+      } catch (error) {
+
+        return new Response(
+          "Error durante el inicio de sesión.",
+          {
+            status: 500
+          }
+        );
+
+      }
+
+    }
+
+    // ==========================================
+    // PROTEGER TODO LO DEMÁS
+    // ==========================================
+
+    const authenticated = await isAuthenticated(
+      request,
+      env
+    );
+
+    if (!authenticated) {
+
+      if (request.method === "GET") {
+
+        return new Response(
+          loginPage(),
+          {
+            status: 200,
+            headers: {
+              "content-type": "text/html;charset=UTF-8",
+              "cache-control": "no-store"
+            }
+          }
+        );
+
+      }
+
+      return Response.json(
+        {
+          error: "No autorizado."
+        },
+        {
+          status: 401
+        }
+      );
+
+    }
+
+    // ==========================================
     // API DE CHAT
-    // =========================
+    // ==========================================
 
     if (request.method === "POST") {
 
@@ -14,16 +338,23 @@ export default {
         const question = data.question;
 
         if (!question) {
+
           return Response.json(
-            { error: "No se recibió ninguna pregunta." },
-            { status: 400 }
+            {
+              error: "No se recibió ninguna pregunta."
+            },
+            {
+              status: 400
+            }
           );
+
         }
 
         const messages = [
 
           {
             role: "system",
+
             content: `
 Eres Marcel Trading IA, un asistente especializado en trading.
 
@@ -108,7 +439,9 @@ Tu función es ayudar al usuario a pensar como un trader disciplinado, no simple
         );
 
         return Response.json({
-          answer: response.response || "No he podido generar una respuesta."
+          answer:
+            response.response ||
+            "No he podido generar una respuesta."
         });
 
       } catch (error) {
@@ -118,16 +451,18 @@ Tu función es ayudar al usuario a pensar como un trader disciplinado, no simple
             error: "Error al consultar la IA.",
             details: String(error)
           },
-          { status: 500 }
+          {
+            status: 500
+          }
         );
 
       }
 
     }
 
-    // =========================
+    // ==========================================
     // INTERFAZ WEB
-    // =========================
+    // ==========================================
 
     const html = `<!DOCTYPE html>
 
@@ -139,6 +474,8 @@ Tu función es ayudar al usuario a pensar como un trader disciplinado, no simple
 
 <meta name="viewport"
 content="width=device-width,initial-scale=1">
+
+<meta name="theme-color" content="#0b1020">
 
 <title>Marcel Trading IA</title>
 
@@ -525,6 +862,15 @@ reward=Math.abs(entry-tp);
 
 }
 
+if(risk === 0){
+
+document.getElementById("analysis").innerHTML=
+"⚠️ El Stop Loss no puede coincidir con la entrada.";
+
+return;
+
+}
+
 const rr=reward/risk;
 
 let verdict;
@@ -719,7 +1065,8 @@ return String(text)
 
     return new Response(html, {
       headers: {
-        "content-type": "text/html;charset=UTF-8"
+        "content-type": "text/html;charset=UTF-8",
+        "cache-control": "no-store"
       }
     });
 
