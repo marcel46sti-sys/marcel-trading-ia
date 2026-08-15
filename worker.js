@@ -35,21 +35,15 @@ async function isAuthenticated(request, env) {
 
   const session = cookies[SESSION_COOKIE];
 
-  if (!session) {
-    return false;
-  }
+  if (!session) return false;
 
   const [timestamp, signature] = session.split(".");
 
-  if (!timestamp || !signature) {
-    return false;
-  }
+  if (!timestamp || !signature) return false;
 
   const timestampNumber = Number(timestamp);
 
-  if (!Number.isFinite(timestampNumber)) {
-    return false;
-  }
+  if (!Number.isFinite(timestampNumber)) return false;
 
   const now = Date.now();
 
@@ -72,23 +66,14 @@ async function isAuthenticated(request, env) {
 function loginPage(error = "") {
   return `<!DOCTYPE html>
 <html lang="es">
-
 <head>
-
 <meta charset="UTF-8">
-
-<meta name="viewport"
-content="width=device-width,initial-scale=1">
-
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0b1020">
-
 <title>Marcel Trading IA - Acceso</title>
 
 <style>
-
-*{
-box-sizing:border-box;
-}
+*{box-sizing:border-box}
 
 body{
 margin:0;
@@ -118,9 +103,7 @@ font-weight:800;
 margin-bottom:8px;
 }
 
-.logo span{
-color:#5b8cff;
-}
+.logo span{color:#5b8cff}
 
 .subtitle{
 color:#9ca8c4;
@@ -164,9 +147,7 @@ color:#ffb7c2;
 font-size:42px;
 margin-bottom:12px;
 }
-
 </style>
-
 </head>
 
 <body>
@@ -205,7 +186,6 @@ ${error ? `<div class="error">${error}</div>` : ""}
 </div>
 
 </body>
-
 </html>`;
 }
 
@@ -215,7 +195,7 @@ export default {
     const url = new URL(request.url);
 
     // ==========================================
-    // INICIO DE SESIÓN
+    // LOGIN
     // ==========================================
 
     if (url.pathname === "/login" && request.method === "POST") {
@@ -223,7 +203,6 @@ export default {
       try {
 
         const formData = await request.formData();
-
         const password = formData.get("password");
 
         if (
@@ -256,7 +235,6 @@ export default {
 
         return new Response(null, {
           status: 303,
-
           headers: {
 
             "Location": "/",
@@ -270,26 +248,21 @@ export default {
               `SameSite=Strict`,
 
             "Cache-Control": "no-store"
-
           }
-
         });
 
       } catch (error) {
 
         return new Response(
           "Error durante el inicio de sesión.",
-          {
-            status: 500
-          }
+          { status: 500 }
         );
 
       }
-
     }
 
     // ==========================================
-    // PROTEGER TODO LO DEMÁS
+    // PROTEGER TODO
     // ==========================================
 
     const authenticated = await isAuthenticated(
@@ -315,18 +288,13 @@ export default {
       }
 
       return Response.json(
-        {
-          error: "No autorizado."
-        },
-        {
-          status: 401
-        }
+        { error: "No autorizado." },
+        { status: 401 }
       );
-
     }
 
     // ==========================================
-    // API DE CHAT
+    // API DE CHAT + IMÁGENES
     // ==========================================
 
     if (request.method === "POST") {
@@ -335,27 +303,27 @@ export default {
 
         const data = await request.json();
 
-        const question = data.question;
+        const question =
+          typeof data.question === "string"
+            ? data.question.trim()
+            : "";
 
-        if (!question) {
+        const image =
+          typeof data.image === "string" && data.image
+            ? data.image
+            : null;
+
+        if (!question && !image) {
 
           return Response.json(
             {
-              error: "No se recibió ninguna pregunta."
+              error: "Escribe una pregunta o sube una imagen."
             },
-            {
-              status: 400
-            }
+            { status: 400 }
           );
-
         }
 
-        const messages = [
-
-          {
-            role: "system",
-
-            content: `
+        const systemPrompt = `
 Eres Marcel Trading IA, un asistente especializado en trading.
 
 Tu objetivo es ayudar al usuario a analizar mercados y mejorar su proceso de toma de decisiones.
@@ -387,55 +355,71 @@ REGLAS IMPORTANTES:
 4. No presentes una operación como segura.
 
 5. Diferencia siempre entre:
-   - hecho
-   - interpretación
-   - hipótesis
-   - confirmación necesaria
+- hecho
+- interpretación
+- hipótesis
+- confirmación necesaria
 
 6. Prioriza la gestión del riesgo sobre la búsqueda de beneficios.
 
 7. Nunca recomiendes aumentar el riesgo para recuperar pérdidas.
 
-8. Si analizas una operación, intenta estructurar la respuesta así:
+8. Si analizas una operación intenta estructurarla así:
 
-   CONTEXTO
-   ESTRUCTURA
-   LIQUIDEZ
-   ZONA DE INTERÉS
-   CONFIRMACIÓN
-   INVALIDACIÓN
-   RIESGO
-   RATIO R:R
-   CONCLUSIÓN
+CONTEXTO
+ESTRUCTURA
+LIQUIDEZ
+ZONA DE INTERÉS
+CONFIRMACIÓN
+INVALIDACIÓN
+RIESGO
+RATIO R:R
+CONCLUSIÓN
 
-9. Si el usuario habla de CRT, PO3, FVG u Order Flow, utiliza esos conceptos correctamente y explica el razonamiento.
+9. Si recibes una imagen de un gráfico, analiza únicamente lo que realmente puedas observar.
 
-10. Si falta información, dilo claramente.
+10. Si ves velas, estructura, FVG, liquidez, niveles o volumen en la imagen, explica qué observas y separa observación de interpretación.
 
-11. No prometas resultados ni beneficios.
+11. No inventes valores que no sean legibles en la imagen.
 
-12. Sé directo y práctico. Evita respuestas genéricas.
+12. Si la imagen no tiene suficiente calidad para analizar algo, dilo.
 
-13. Si detectas que el usuario está actuando por miedo, revancha, FOMO o intentando recuperar una pérdida, señálalo.
+13. Si el usuario habla de CRT, PO3, FVG u Order Flow, utiliza esos conceptos correctamente.
+
+14. No prometas resultados ni beneficios.
+
+15. Sé directo y práctico.
+
+16. Si detectas miedo, revancha, FOMO o intención de recuperar una pérdida rápidamente, señálalo.
 
 Tu función es ayudar al usuario a pensar como un trader disciplinado, no simplemente decirle "compra" o "vende".
-`
-          },
+`;
 
+        const messages = [
+          {
+            role: "system",
+            content: systemPrompt
+          },
           {
             role: "user",
-            content: question
+            content: question || "Analiza esta imagen desde el punto de vista del trading."
           }
-
         ];
 
+        const aiOptions = {
+          messages,
+          max_tokens: 1000,
+          temperature: 0.25
+        };
+
+        // Si existe imagen, se añade al modelo Vision.
+        if (image) {
+          aiOptions.image = image;
+        }
+
         const response = await env.AI.run(
-          "@cf/meta/llama-3.2-1b-instruct",
-          {
-            messages,
-            max_tokens: 700,
-            temperature: 0.25
-          }
+          "@cf/meta/llama-3.2-11b-vision-instruct",
+          aiOptions
         );
 
         return Response.json({
@@ -451,17 +435,14 @@ Tu función es ayudar al usuario a pensar como un trader disciplinado, no simple
             error: "Error al consultar la IA.",
             details: String(error)
           },
-          {
-            status: 500
-          }
+          { status: 500 }
         );
 
       }
-
     }
 
     // ==========================================
-    // INTERFAZ WEB
+    // INTERFAZ
     // ==========================================
 
     const html = `<!DOCTYPE html>
@@ -586,11 +567,12 @@ line-height:1.6;
 }
 
 .chat{
-margin-top:18px;
+grid-column:1/-1;
+margin-top:0;
 }
 
 .messages{
-height:300px;
+height:320px;
 overflow:auto;
 padding:12px;
 background:#0b1020;
@@ -616,6 +598,42 @@ margin-left:auto;
 background:#1b263e;
 }
 
+.image-box{
+margin-bottom:12px;
+padding:14px;
+background:#0b1020;
+border:1px dashed #34415f;
+border-radius:10px;
+}
+
+.image-preview{
+display:none;
+width:100%;
+max-height:350px;
+object-fit:contain;
+border-radius:10px;
+margin-top:10px;
+}
+
+.remove-image{
+display:none;
+margin-top:8px;
+background:#713040;
+}
+
+.send-row{
+display:flex;
+gap:8px;
+}
+
+.send-row input{
+margin:0;
+}
+
+.send-row button{
+white-space:nowrap;
+}
+
 .full{
 grid-column:1/-1;
 }
@@ -628,6 +646,10 @@ grid-template-columns:1fr;
 
 .full{
 grid-column:auto;
+}
+
+.send-row{
+flex-direction:column;
 }
 
 }
@@ -647,20 +669,97 @@ Marcel <span>Trading IA</span>
 </div>
 
 <div class="badge">
-● IA conectada
+● IA Vision
 </div>
 
 </header>
 
 <h1>
-Panel de Trading Inteligente
+Marcel Trading IA
 </h1>
 
 <div class="subtitle">
-Analiza setups, calcula riesgo y consulta a Marcel Trading IA.
+Analiza gráficos, setups y operaciones con inteligencia artificial.
 </div>
 
-<div class="grid">
+
+<!-- =========================================
+     IA ARRIBA
+========================================= -->
+
+<div class="card chat">
+
+<h2>🤖 Pregunta a Marcel Trading IA</h2>
+
+<p>
+Escribe tu pregunta o sube una captura de tu gráfico.
+Puedes hacer ambas cosas a la vez.
+</p>
+
+<div class="image-box">
+
+<label for="imageInput">
+📷 <b>Subir imagen del gráfico</b>
+</label>
+
+<input
+id="imageInput"
+type="file"
+accept="image/png,image/jpeg,image/webp"
+>
+
+<img
+id="imagePreview"
+class="image-preview"
+alt="Vista previa"
+>
+
+<button
+id="removeImage"
+class="remove-image"
+onclick="removeImage()"
+>
+Eliminar imagen
+</button>
+
+</div>
+
+<div class="messages" id="messages">
+
+<div class="msg ai">
+
+Hola Marcel 👋
+
+Soy tu asistente de trading.
+
+Puedes preguntarme sobre CRT, PO3, FVG, Order Flow, estructura, liquidez, riesgo o subir una captura de tu gráfico para analizarla.
+
+</div>
+
+</div>
+
+<div class="send-row">
+
+<input
+id="question"
+placeholder="Escribe tu pregunta..."
+>
+
+<button onclick="askAI()">
+Enviar
+</button>
+
+</div>
+
+</div>
+
+
+<!-- =========================================
+     RESTO DE HERRAMIENTAS
+========================================= -->
+
+<div class="grid" style="margin-top:15px;">
+
 
 <div class="card">
 
@@ -757,7 +856,7 @@ Introduce capital y riesgo.
 <h2>📓 Diario</h2>
 
 <p>
-Registra el resultado y aprendizaje de la operación.
+Registra el resultado y aprendizaje.
 </p>
 
 <select id="tradeResult">
@@ -784,36 +883,6 @@ No hay operación guardada.
 
 </div>
 
-
-<div class="card full chat">
-
-<h2>🤖 Marcel Trading IA</h2>
-
-<div class="messages" id="messages">
-
-<div class="msg ai">
-
-Hola Marcel 👋
-
-Soy tu asistente de trading.
-
-Pregúntame sobre CRT, PO3, FVG, Order Flow, estructura, liquidez, riesgo o cualquier operación que quieras analizar.
-
-</div>
-
-</div>
-
-<input
-id="question"
-placeholder="Escribe tu pregunta..."
->
-
-<button onclick="askAI()">
-Enviar
-</button>
-
-</div>
-
 </div>
 
 </div>
@@ -821,26 +890,93 @@ Enviar
 
 <script>
 
+let selectedImage = null;
+
+
+// ==========================================
+// IMAGEN
+// ==========================================
+
+document
+.getElementById("imageInput")
+.addEventListener("change", async function(event){
+
+const file = event.target.files[0];
+
+if(!file){
+return;
+}
+
+if(!file.type.startsWith("image/")){
+alert("Selecciona una imagen.");
+return;
+}
+
+const reader = new FileReader();
+
+reader.onload = function(e){
+
+selectedImage = e.target.result;
+
+const preview =
+document.getElementById("imagePreview");
+
+preview.src = selectedImage;
+preview.style.display = "block";
+
+document
+.getElementById("removeImage")
+.style.display = "block";
+
+};
+
+reader.readAsDataURL(file);
+
+});
+
+
+function removeImage(){
+
+selectedImage = null;
+
+document
+.getElementById("imageInput")
+.value = "";
+
+document
+.getElementById("imagePreview")
+.style.display = "none";
+
+document
+.getElementById("removeImage")
+.style.display = "none";
+
+}
+
+
+// ==========================================
+// ANALIZADOR
+// ==========================================
+
 function analyze(){
 
-const entry=parseFloat(
-document.getElementById("entry").value
-);
+const entry =
+parseFloat(document.getElementById("entry").value);
 
-const sl=parseFloat(
-document.getElementById("sl").value
-);
+const sl =
+parseFloat(document.getElementById("sl").value);
 
-const tp=parseFloat(
-document.getElementById("tp").value
-);
+const tp =
+parseFloat(document.getElementById("tp").value);
 
-const direction=
+const direction =
 document.getElementById("direction").value;
 
-if(!entry || !sl || !tp){
+if(!Number.isFinite(entry) ||
+   !Number.isFinite(sl) ||
+   !Number.isFinite(tp)){
 
-document.getElementById("analysis").innerHTML=
+document.getElementById("analysis").innerHTML =
 "⚠️ Completa entrada, SL y TP.";
 
 return;
@@ -850,41 +986,41 @@ return;
 let risk;
 let reward;
 
-if(direction==="LONG"){
+if(direction === "LONG"){
 
-risk=Math.abs(entry-sl);
-reward=Math.abs(tp-entry);
+risk = Math.abs(entry - sl);
+reward = Math.abs(tp - entry);
 
 }else{
 
-risk=Math.abs(sl-entry);
-reward=Math.abs(entry-tp);
+risk = Math.abs(sl - entry);
+reward = Math.abs(entry - tp);
 
 }
 
 if(risk === 0){
 
-document.getElementById("analysis").innerHTML=
+document.getElementById("analysis").innerHTML =
 "⚠️ El Stop Loss no puede coincidir con la entrada.";
 
 return;
 
 }
 
-const rr=reward/risk;
+const rr = reward / risk;
 
 let verdict;
 
-if(rr>=3)
-verdict="🟢 R:R atractivo";
+if(rr >= 3)
+verdict = "🟢 R:R atractivo";
 
-else if(rr>=2)
-verdict="🟡 R:R aceptable";
+else if(rr >= 2)
+verdict = "🟡 R:R aceptable";
 
 else
-verdict="🔴 R:R bajo";
+verdict = "🔴 R:R bajo";
 
-document.getElementById("analysis").innerHTML=
+document.getElementById("analysis").innerHTML =
 
 "<b>"+verdict+"</b><br>"+
 "Distancia SL: "+risk.toFixed(2)+"<br>"+
@@ -894,29 +1030,31 @@ document.getElementById("analysis").innerHTML=
 }
 
 
+// ==========================================
+// RIESGO
+// ==========================================
+
 function riskCalc(){
 
-const account=parseFloat(
-document.getElementById("account").value
-);
+const account =
+parseFloat(document.getElementById("account").value);
 
-const risk=parseFloat(
-document.getElementById("risk").value
-);
+const risk =
+parseFloat(document.getElementById("risk").value);
 
-if(!account || !risk){
+if(!Number.isFinite(account) ||
+   !Number.isFinite(risk)){
 
-document.getElementById("riskResult").innerHTML=
+document.getElementById("riskResult").innerHTML =
 "⚠️ Introduce capital y porcentaje de riesgo.";
 
 return;
 
 }
 
-const amount=
-account*(risk/100);
+const amount = account * (risk / 100);
 
-document.getElementById("riskResult").innerHTML=
+document.getElementById("riskResult").innerHTML =
 
 "<b>Riesgo máximo:</b> €"+
 amount.toFixed(2);
@@ -924,17 +1062,21 @@ amount.toFixed(2);
 }
 
 
+// ==========================================
+// DIARIO
+// ==========================================
+
 function saveTrade(){
 
-const result=
+const result =
 document.getElementById("tradeResult").value;
 
-const notes=
+const notes =
 document.getElementById("notes").value;
 
-if(!notes){
+if(!notes.trim()){
 
-document.getElementById("saved").innerHTML=
+document.getElementById("saved").innerHTML =
 "⚠️ Escribe una nota.";
 
 return;
@@ -950,52 +1092,64 @@ date:new Date().toLocaleString()
 })
 );
 
-document.getElementById("saved").innerHTML=
+document.getElementById("saved").innerHTML =
 
 "✅ Operación guardada<br>"+
-"<b>"+result+"</b><br>"+
-notes;
+"<b>"+escapeHtml(result)+"</b><br>"+
+escapeHtml(notes);
 
 }
 
 
+// ==========================================
+// CHAT IA
+// ==========================================
+
 async function askAI(){
 
-const input=
+const input =
 document.getElementById("question");
 
-const question=
+const question =
 input.value.trim();
 
-if(!question)return;
+if(!question && !selectedImage){
+return;
+}
 
-const messages=
+const messages =
 document.getElementById("messages");
 
-messages.innerHTML+=
+if(question){
 
+messages.innerHTML +=
 '<div class="msg user">'+
 escapeHtml(question)+
 '</div>';
 
-input.value="";
+}else{
 
-const loading=
+messages.innerHTML +=
+'<div class="msg user">📷 Analiza esta imagen.</div>';
+
+}
+
+input.value = "";
+
+const loading =
 document.createElement("div");
 
-loading.className="msg ai";
-
-loading.textContent=
-"🧠 Analizando...";
+loading.className = "msg ai";
+loading.textContent = "🧠 Analizando...";
 
 messages.appendChild(loading);
 
-messages.scrollTop=
+messages.scrollTop =
 messages.scrollHeight;
 
 try{
 
-const response=
+const response =
 await fetch("/",{
 
 method:"POST",
@@ -1005,33 +1159,37 @@ headers:{
 },
 
 body:JSON.stringify({
-question
+
+question: question,
+
+image: selectedImage
+
 })
 
 });
 
-const data=
+const data =
 await response.json();
 
 loading.remove();
 
 if(data.error){
-
 throw new Error(data.error);
-
 }
 
-messages.innerHTML+=
+messages.innerHTML +=
 
 '<div class="msg ai">'+
-escapeHtml(data.answer)+
+escapeHtml(data.answer || "Sin respuesta.")+
 '</div>';
+
+removeImage();
 
 }catch(error){
 
 loading.remove();
 
-messages.innerHTML+=
+messages.innerHTML +=
 
 '<div class="msg ai">'+
 "⚠️ Error al conectar con la IA: "+
@@ -1040,15 +1198,20 @@ escapeHtml(error.message)+
 
 }
 
-messages.scrollTop=
+messages.scrollTop =
 messages.scrollHeight;
 
 }
 
 
+// ==========================================
+// SEGURIDAD HTML
+// ==========================================
+
 function escapeHtml(text){
 
 return String(text)
+
 .replaceAll("&","&amp;")
 .replaceAll("<","&lt;")
 .replaceAll(">","&gt;")
